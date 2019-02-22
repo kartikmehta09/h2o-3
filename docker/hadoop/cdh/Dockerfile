@@ -14,12 +14,6 @@ ARG PATH_PREFIX='.'
 ARG DEFAULT_USER_UID=2117
 ARG PYTHON_VERSIONS='2.7,3.6'
 ARG JAVA_VERSIONS='8'
-ARG HIVE_VERSION
-RUN \
-    if [ -z $HIVE_VERSION ]; then \
-        echo "build-arg HIVE_VERSION must be set"; \
-        exit 1; \
-    fi
 ARG AWS_ACCESS_KEY
 ARG AWS_SECRET_ACCESS_KEY
 
@@ -27,7 +21,7 @@ ENV DISTRIBUTION='cdh' \
     HADOOP_HOME=/usr/lib/hadoop \
     HADOOP_CONF_DIR='/etc/hadoop/conf.pseudo' \
     MASTER='yarn-client' \
-    HIVE_HOME=/home/hive/apache-hive-${HIVE_VERSION}-bin
+    HIVE_HOME=/usr/lib/hive
 
 RUN \
     apt-get update && \
@@ -56,8 +50,10 @@ COPY ${PATH_PREFIX}/conf/cloudera.pref /etc/apt/preferences.d/cloudera.pref
 RUN apt-key add archive.key && \
     add-apt-repository -y ppa:deadsnakes && \
     apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y hadoop-conf-pseudo python-pip python-dev python-virtualenv \
-        libmysqlclient-dev sudo unzip html2text slapd ldap-utils libkrb5-dev
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        mysql-server libmysql-java libmysqlclient-dev \
+        hadoop-conf-pseudo python-pip python-dev python-virtualenv \
+        sudo unzip html2text slapd ldap-utils libkrb5-dev
 
 # Add jenkins and users
 RUN adduser --disabled-password --gecos "" -u ${DEFAULT_USER_UID} jenkins && \
@@ -82,7 +78,8 @@ ENV \
   PATH=/usr/lib/jvm/java-current-oracle/bin:${PATH}
 
 # Copy configs
-COPY ${PATH_PREFIX}/conf/ ${HADOOP_CONF_DIR}
+COPY ${PATH_PREFIX}/conf/ ${HADOOP_CONF_DIR}/
+COPY ${PATH_PREFIX}/../common/conf-hive/ /etc/hive/conf/
 
 # Initialize namenode
 RUN service hadoop-hdfs-namenode init
@@ -106,7 +103,8 @@ RUN chmod 700 /usr/sbin/startup.sh && \
     chmod +x /usr/sbin/install_hive.sh && \
     chmod 700 /usr/sbin/install_ldap.sh && \
     sync && \
-    /usr/sbin/install_hive.sh
+    /usr/sbin/install_hive.sh && \
+    ln -sf /usr/share/java/mysql-connector-java.jar /usr/lib/hive/lib/mysql-connector-java.jar
 
 RUN /usr/sbin/install_ldap.sh
 
