@@ -10,17 +10,18 @@ ARG DEFAULT_USER_UID=2117
 ARG PYTHON_VERSIONS='2.7,3.6'
 ARG JAVA_VERSIONS='8'
 ARG HIVE_VERSION='2.2.0'
+ARG HIVE_SCHEMA_VERSION='2.1.0'
 
 ENV DISTRIBUTION='hdp' \
     MASTER='yarn-client' \
     HADOOP_HOME=/usr/hdp/current/hadoop-client/ \
     HADOOP_CONF_DIR=/etc/hadoop/conf \
-    HADOOP_DAEMON=/usr/hdp/*/hadoop/sbin/hadoop-daemon.sh \
-    YARN_DAEMON=/usr/hdp/*/hadoop-yarn/sbin/yarn-daemon.sh \
     MAPRED_USER=mapred \
     YARN_USER=yarn \
+    YARN_CONF_DIR=/etc/hadoop/conf \
     HDFS_USER=hdfs \
-    HIVE_HOME=/home/hive/apache-hive-${HIVE_VERSION}-bin
+    HIVE_HOME=/home/hive/apache-hive-${HIVE_VERSION}-bin \
+    HIVE_SCHEMA_VERSION=${HIVE_SCHEMA_VERSION}
 
 # Copy bin and sbin scripts
 COPY ${PATH_PREFIX}/scripts/sbin ${PATH_PREFIX}/../common/sbin scripts/install_java_version scripts/install_java_versions scripts/java-*-vars.sh scripts/install_python_version /usr/sbin/
@@ -34,8 +35,10 @@ RUN apt-get update && \
     rm /usr/sbin/add_hdp_repo.sh && \
     add-apt-repository -y ppa:deadsnakes && \
     apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y hadoop-conf-pseudo python-pip python-dev python-virtualenv \
-        libmysqlclient-dev sudo unzip html2text slapd ldap-utils libkrb5-dev
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        hadoop-conf-pseudo python-pip python-dev python-virtualenv \
+        mysql-server libmysql-java libmysqlclient-dev \
+        sudo unzip html2text slapd ldap-utils libkrb5-dev
 
 # Create jenkins and hive users
 RUN adduser --disabled-password --gecos "" -u ${DEFAULT_USER_UID} jenkins && \
@@ -75,6 +78,7 @@ RUN rm /usr/hdp/*/hadoop/conf/* && \
 
 # Copy configs
 COPY ${PATH_PREFIX}/conf/ ${HADOOP_CONF_DIR}
+COPY ${PATH_PREFIX}/../common/conf-hive/ ${HIVE_HOME}/conf/
 
 # Generate mapred-site.xml
 RUN chmod 700 /usr/sbin/generate-mapred-site && \
@@ -104,7 +108,8 @@ RUN chmod 700 /usr/sbin/startup.sh && \
     chmod +x /usr/sbin/install_hive.sh && \
     chmod 700 /usr/sbin/install_ldap.sh && \
     sync && \
-    /usr/sbin/install_hive.sh
+    /usr/sbin/install_hive.sh && \
+    ln -sf /usr/share/java/mysql-connector-java.jar $HIVE_HOME/lib/mysql-connector-java.jar
 
 RUN /usr/sbin/install_ldap.sh
 
